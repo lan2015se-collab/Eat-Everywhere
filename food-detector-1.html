@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>FOOD.EXE — Cyberpunk Food Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cyan: #00f5ff;
+  --magenta: #ff00aa;
+  --yellow: #ffe600;
+  --black: #000000;
+  --white: #ffffff;
+  --gray: #888888;
+  --lgray: #cccccc;
+  --bgray: #f4f4f4;
+  --s-cyan: 0 0 8px rgba(0,245,255,0.7), 0 0 24px rgba(0,245,255,0.3);
+  --s-mag:  0 0 8px rgba(255,0,170,0.7), 0 0 24px rgba(255,0,170,0.3);
+  --s-yel:  0 0 8px rgba(255,230,0,0.7), 0 0 24px rgba(255,230,0,0.3);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background: #fff;
+  font-family: 'Rajdhani', sans-serif;
+  color: #000;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(0,245,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,245,255,0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events:none; z-index:0;
+}
+body::after {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.012) 3px, rgba(0,0,0,0.012) 4px);
+  pointer-events:none; z-index:999;
+}
+
+/* HEADER */
+header {
+  position:relative; z-index:10;
+  background:#fff;
+  border-bottom: 3px solid #000;
+  padding: 14px 18px 12px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.logo {
+  font-family:'Orbitron', monospace;
+  font-weight:900;
+  font-size: clamp(16px,4.5vw,26px);
+  letter-spacing:4px;
+}
+.logo .acc { color: var(--magenta); text-shadow: var(--s-mag); }
+.logo-sub {
+  font-family:'Share Tech Mono', monospace;
+  font-size:9px; letter-spacing:2px; color:var(--gray);
+  margin-top:2px;
+}
+.status-panel {
+  font-family:'Share Tech Mono', monospace;
+  font-size:10px; color:var(--gray); text-align:right; line-height:2;
+}
+.sdot {
+  display:inline-block; width:7px; height:7px;
+  border-radius:50%; background:#ccc;
+  margin-right:5px; vertical-align:middle;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.sdot.on  { background:var(--cyan);    box-shadow:var(--s-cyan); animation:bp 1.5s infinite; }
+.sdot.scan{ background:var(--magenta); box-shadow:var(--s-mag);  animation:bp 0.5s infinite; }
+@keyframes bp { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* PERMISSION GATE */
+#permGate {
+  position:relative; z-index:5;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height: calc(100dvh - 80px);
+  padding:32px 24px; text-align:center; gap:24px;
+}
+.gate-icon { font-size:72px; line-height:1; filter: drop-shadow(0 0 18px rgba(0,245,255,0.5)); }
+.gate-titles { display:flex; flex-direction:column; gap:4px; }
+.gate-title-en {
+  font-family:'Orbitron', monospace; font-weight:900;
+  font-size: clamp(18px,5.5vw,30px); letter-spacing:4px;
+}
+.gate-title-en span { color:var(--cyan); text-shadow:var(--s-cyan); }
+.gate-title-zh {
+  font-family:'Orbitron', monospace; font-weight:400;
+  font-size: clamp(12px,3vw,18px); letter-spacing:3px; color:var(--gray);
+}
+.gate-desc {
+  font-size:15px; line-height:1.8; color:#444; max-width:340px; font-weight:500;
+}
+.gate-desc .zh { display:block; }
+.gate-desc .en { display:block; font-size:13px; color:var(--gray); font-family:'Share Tech Mono',monospace; margin-top:8px; letter-spacing:1px; }
+.gate-btn {
+  font-family:'Orbitron', monospace; font-weight:900;
+  font-size:13px; letter-spacing:3px;
+  padding:18px 36px;
+  background:#000; color:var(--cyan);
+  border:3px solid #000; cursor:pointer;
+  text-shadow:var(--s-cyan);
+  transition:all 0.15s;
+  position:relative; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+}
+.gate-btn .btn-zh { font-size:11px; letter-spacing:2px; color:rgba(0,245,255,0.7); }
+.gate-btn::after {
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(90deg, transparent, rgba(0,245,255,0.12), transparent);
+  transform:translateX(-100%); transition:transform 0.6s;
+}
+.gate-btn:hover::after { transform:translateX(100%); }
+.gate-btn:hover { box-shadow:var(--s-cyan); }
+.gate-btn:active { transform:scale(0.97); }
+.gate-warn {
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  color:var(--gray); letter-spacing:2px; max-width:300px; line-height:2.2;
+  border:1px dashed #ccc; padding:12px 16px;
+}
+
+/* MAIN APP */
+#appMain {
+  position:relative; z-index:5;
+  display:none; flex-direction:column; align-items:center;
+  padding:20px 18px 32px; gap:18px;
+}
+
+.cam-wrap {
+  position:relative;
+  width:100%; max-width:480px;
+  border:3px solid #000;
+  background:#000;
+  aspect-ratio:4/3;
+  overflow:hidden;
+}
+.cc { position:absolute; width:22px; height:22px; z-index:20; pointer-events:none; }
+.cc.tl { top:8px;left:8px;   border-top:3px solid var(--cyan);    border-left:3px solid var(--cyan);    box-shadow:var(--s-cyan); }
+.cc.tr { top:8px;right:8px;  border-top:3px solid var(--cyan);    border-right:3px solid var(--cyan);   box-shadow:var(--s-cyan); }
+.cc.bl { bottom:8px;left:8px;  border-bottom:3px solid var(--magenta); border-left:3px solid var(--magenta);  box-shadow:var(--s-mag); }
+.cc.br { bottom:8px;right:8px; border-bottom:3px solid var(--magenta); border-right:3px solid var(--magenta); box-shadow:var(--s-mag); }
+
+#video { width:100%; height:100%; object-fit:cover; display:block; transform:scaleX(-1); }
+canvas { display:none; }
+
+.scan-beam {
+  position:absolute; left:0; right:0; height:2px;
+  background:linear-gradient(90deg, transparent, var(--cyan), transparent);
+  box-shadow:0 0 12px var(--cyan);
+  animation:beam 2.5s linear infinite;
+  pointer-events:none; z-index:15;
+}
+@keyframes beam { 0%{top:0%} 100%{top:100%} }
+
+.detect-badge {
+  position:absolute; bottom:40px; left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,0.82); color:var(--cyan);
+  font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:2px;
+  padding:5px 14px; border:1px solid var(--cyan);
+  text-shadow:var(--s-cyan); white-space:nowrap; z-index:20;
+  opacity:0; transition:opacity 0.3s;
+}
+.detect-badge.show { opacity:1; }
+
+.cam-hud-l {
+  position:absolute; bottom:10px; left:12px;
+  font-family:'Share Tech Mono',monospace; font-size:9px;
+  color:rgba(0,245,255,0.65); line-height:1.9; z-index:20; pointer-events:none;
+}
+.cam-hud-r {
+  position:absolute; bottom:10px; right:12px;
+  font-family:'Share Tech Mono',monospace; font-size:9px;
+  color:rgba(255,0,170,0.65); line-height:1.9; z-index:20; pointer-events:none; text-align:right;
+}
+
+.stop-btn {
+  width:100%; max-width:480px;
+  font-family:'Orbitron',monospace; font-weight:700;
+  font-size:10px; letter-spacing:3px;
+  padding:12px; background:#fff; color:#000;
+  border:2px solid #000; cursor:pointer;
+  transition:all 0.15s;
+}
+.stop-btn:hover { background:#000; color:var(--magenta); text-shadow:var(--s-mag); }
+
+.log-box { width:100%; max-width:480px; border:2px solid #000; }
+.log-hdr {
+  background:#000; color:var(--cyan); text-shadow:var(--s-cyan);
+  font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:3px;
+  padding:7px 14px; display:flex; justify-content:space-between;
+}
+.log-body {
+  padding:10px 14px; max-height:90px; overflow-y:auto;
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  color:#888; line-height:1.9; background:#fafafa;
+}
+.le.food { color:var(--magenta); font-weight:bold; }
+.le.ok   { color:#00bb55; }
+.le.err  { color:#ff3333; }
+
+/* MODAL */
+.overlay {
+  position:fixed; inset:0; z-index:1000;
+  background:rgba(255,255,255,0.88);
+  backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center;
+  padding:16px;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.3s;
+}
+.overlay.show { opacity:1; pointer-events:all; }
+.modal {
+  background:#fff;
+  border:3px solid #000;
+  width:100%; max-width:460px;
+  max-height:92dvh; overflow-y:auto;
+  transform:translateY(24px);
+  transition:transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+.overlay.show .modal { transform:translateY(0); }
+
+.modal-topbar {
+  background:#000; padding:13px 18px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:10;
+}
+.modal-topbar-title {
+  font-family:'Orbitron',monospace; font-weight:900;
+  font-size:12px; letter-spacing:3px;
+  color:var(--yellow); text-shadow:var(--s-yel);
+  display:flex; flex-direction:column; gap:2px;
+}
+.modal-topbar-title small { font-size:8px; letter-spacing:2px; color:rgba(255,230,0,0.5); }
+.modal-topbar-rec {
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  color:var(--magenta); text-shadow:var(--s-mag);
+  animation:bp 0.8s infinite;
+}
+
+.modal-img-wrap {
+  width:100%; aspect-ratio:4/3;
+  background:#111; position:relative; overflow:hidden;
+}
+.modal-img-wrap img {
+  width:100%; height:100%; object-fit:cover; transform:scaleX(-1);
+}
+.modal-img-badge {
+  position:absolute; top:10px; left:10px;
+  background:var(--magenta); color:#fff;
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  padding:3px 10px; letter-spacing:2px; box-shadow:var(--s-mag);
+}
+.modal-img-badge-en {
+  position:absolute; top:10px; right:10px;
+  background:rgba(0,0,0,0.7); color:var(--cyan);
+  font-family:'Share Tech Mono',monospace; font-size:9px;
+  padding:3px 10px; letter-spacing:2px; border:1px solid var(--cyan);
+}
+
+.modal-body { padding:18px; display:flex; flex-direction:column; gap:14px; }
+
+.ai-box {
+  background:#000; color:var(--cyan); text-shadow:var(--s-cyan);
+  border-left:4px solid var(--cyan);
+  padding:12px 14px;
+  font-family:'Share Tech Mono',monospace; font-size:11px; line-height:2;
+}
+.ai-box .ai-head { color:rgba(0,245,255,0.5); font-size:9px; letter-spacing:3px; }
+.ai-box .ai-food { color:var(--yellow); text-shadow:var(--s-yel); font-size:14px; margin-top:4px; }
+.ai-box .ai-origin { color:#aaa; font-size:10px; margin-top:2px; }
+.ai-box .ai-desc { color:#555; font-size:10px; margin-top:4px; }
+
+.field { display:flex; flex-direction:column; gap:6px; }
+.field label {
+  font-family:'Orbitron',monospace; font-size:10px; font-weight:700;
+  letter-spacing:1px; color:#000;
+  display:flex; align-items:flex-start; gap:8px;
+}
+.num {
+  width:20px; height:20px; flex-shrink:0;
+  background:#000; color:var(--cyan); text-shadow:var(--s-cyan);
+  display:flex; align-items:center; justify-content:center;
+  font-size:9px; font-family:'Share Tech Mono',monospace;
+}
+.lbl-zh { display:block; }
+.lbl-en { display:block; color:var(--gray); font-size:8px; letter-spacing:1px; font-family:'Share Tech Mono',monospace; margin-top:2px; }
+
+input[type=text] {
+  width:100%; border:2px solid #000;
+  background:#fafafa; padding:10px 13px;
+  font-family:'Share Tech Mono',monospace; font-size:13px;
+  color:#000; outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+}
+input[type=text]:focus { border-color:var(--cyan); box-shadow:0 0 0 2px rgba(0,245,255,0.1); }
+
+.stars { display:flex; gap:8px; flex-wrap:wrap; }
+.star-btn {
+  flex:1; min-width:44px;
+  border:2px solid #000; background:#fff;
+  padding:9px 4px; text-align:center;
+  font-family:'Share Tech Mono',monospace; font-size:13px;
+  cursor:pointer; transition:all 0.12s;
+}
+.star-btn:active { transform:scale(0.95); }
+.star-btn.sel {
+  background:#000; color:var(--yellow); text-shadow:var(--s-yel);
+  box-shadow:var(--s-yel);
+}
+
+.agree-row {
+  display:flex; align-items:center; gap:12px;
+  border:2px solid #000; padding:12px 14px;
+  cursor:pointer; background:#fafafa;
+  transition:background 0.15s;
+}
+.agree-row:hover { background:#f0f0f0; }
+.agree-box {
+  width:28px; height:28px; flex-shrink:0;
+  border:2px solid #000;
+  display:flex; align-items:center; justify-content:center;
+  font-size:15px; font-family:'Share Tech Mono',monospace;
+  transition:all 0.2s;
+}
+.agree-row.on .agree-box {
+  background:#000; color:var(--cyan); border-color:#000;
+  box-shadow:var(--s-cyan);
+}
+.agree-text { font-size:14px; font-weight:600; line-height:1.5; }
+.agree-text .en { display:block; font-size:11px; color:var(--gray); font-family:'Share Tech Mono',monospace; }
+
+.modal-footer {
+  padding:16px 18px; border-top:2px solid #000;
+  display:flex; gap:10px;
+  position:sticky; bottom:0; background:#fff;
+}
+.btn-cancel {
+  flex:1; font-family:'Orbitron',monospace; font-size:9px;
+  letter-spacing:2px; padding:14px;
+  background:#fff; color:#000;
+  border:2px solid #000; cursor:pointer;
+  transition:all 0.15s; line-height:1.8;
+}
+.btn-cancel:hover { background:#000; color:#fff; }
+
+.btn-publish {
+  flex:2; font-family:'Orbitron',monospace; font-weight:900;
+  font-size:13px; letter-spacing:3px;
+  padding:14px; background:#000; color:var(--yellow);
+  border:2px solid #000; cursor:pointer;
+  text-shadow:var(--s-yel); text-transform:uppercase;
+  transition:all 0.15s; position:relative; overflow:hidden;
+  line-height:1.8;
+}
+.btn-publish::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg, transparent, rgba(255,230,0,0.15), transparent);
+  transform:translateX(-100%); transition:transform 0.5s;
+}
+.btn-publish:hover::before { transform:translateX(100%); }
+.btn-publish:hover { background:var(--yellow); color:#000; text-shadow:none; box-shadow:var(--s-yel); }
+.btn-publish:disabled { opacity:0.45; cursor:not-allowed; }
+
+#flash {
+  position:fixed; inset:0; background:var(--magenta);
+  opacity:0; z-index:800; pointer-events:none;
+}
+@keyframes flashAnim { 0%{opacity:0.5} 100%{opacity:0} }
+
+.toast {
+  position:fixed; bottom:28px; left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:#000; color:var(--cyan);
+  font-family:'Share Tech Mono',monospace; font-size:11px;
+  letter-spacing:1px; padding:13px 22px;
+  border:2px solid var(--cyan); box-shadow:var(--s-cyan);
+  z-index:2000; transition:transform 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+  white-space:pre-line; max-width:90vw; text-align:center;
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+.toast.err { color:var(--magenta); border-color:var(--magenta); box-shadow:var(--s-mag); }
+
+.foot-note {
+  font-family:'Share Tech Mono',monospace; font-size:9px;
+  letter-spacing:2px; color:#ccc; text-align:center;
+  position:relative; z-index:5;
+  padding-bottom:20px;
+}
+</style>
+</head>
+<body>
+
+<div id="flash"></div>
+
+<header>
+  <div>
+    <div class="logo">FOOD<span class="acc">.</span>EXE</div>
+    <div class="logo-sub">CYBERPUNK FOOD SCANNER · 賽博朋克食物偵測器</div>
+  </div>
+  <div class="status-panel">
+    <div><span class="sdot" id="sdotCam"></span><span id="stCam">OFFLINE 離線</span></div>
+    <div><span class="sdot" id="sdotAi"></span><span id="stAi">AI STANDBY 待機</span></div>
+  </div>
+</header>
+
+<!-- ── PERMISSION GATE ── -->
+<div id="permGate">
+  <div class="gate-icon">📷</div>
+  <div class="gate-titles">
+    <div class="gate-title-en">ACTIVATE <span>SCANNER</span></div>
+    <div class="gate-title-zh">啟動食物掃描器</div>
+  </div>
+  <div class="gate-desc">
+    <span class="zh">
+      點擊下方按鈕，系統將請求開啟<strong>手機前鏡頭</strong>。<br>
+      AI 將即時偵測畫面中的食物，並自動觸發問答視窗。
+    </span>
+    <span class="en">
+      Click the button to request FRONT CAMERA access.<br>
+      AI will auto-detect food in real-time and trigger the Q&amp;A form.
+    </span>
+  </div>
+  <button class="gate-btn" onclick="requestCamera()">
+    ▶ ENABLE CAMERA
+    <span class="btn-zh">開啟鏡頭授權</span>
+  </button>
+  <div class="gate-warn">
+    ⚠ 瀏覽器將彈出鏡頭授權請求<br>
+    A CAMERA PERMISSION DIALOG WILL APPEAR<br>
+    請點擊「允許 / Allow」繼續使用
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="appMain">
+  <div class="cam-wrap">
+    <div class="cc tl"></div>
+    <div class="cc tr"></div>
+    <div class="cc bl"></div>
+    <div class="cc br"></div>
+    <div class="scan-beam"></div>
+    <div class="detect-badge" id="detectBadge">🍜 FOOD DETECTED · 偵測到食物！</div>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="cam-hud-l">
+      <div id="hudTime">--:--:--</div>
+      <div>LENS: FRONT · 前鏡頭</div>
+    </div>
+    <div class="cam-hud-r">
+      <div id="hudScan">SCANNING · 掃描中</div>
+      <div>AI: GEMINI</div>
+    </div>
+  </div>
+
+  <button class="stop-btn" onclick="stopCamera()">■ STOP SCANNER · 停止掃描</button>
+
+  <div class="log-box">
+    <div class="log-hdr">
+      <span>SYSTEM LOG · 系統日誌</span>
+      <span id="logCnt">0 EVENTS</span>
+    </div>
+    <div class="log-body" id="logBody">
+      <span class="le sys">[BOOT] FOOD.EXE 系統啟動...</span>
+    </div>
+  </div>
+</div>
+
+<div class="foot-note" id="footNote" style="display:none">
+  POWERED BY GOOGLE GEMINI · WHITE CYBERPUNK EDITION · 白色賽博朋克版
+</div>
+
+<!-- ── MODAL ── -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-topbar">
+      <div class="modal-topbar-title">
+        ⚡ FOOD DETECTED!
+        <small>偵測到食物！請填寫以下資訊</small>
+      </div>
+      <div class="modal-topbar-rec">■ REC</div>
+    </div>
+
+    <div class="modal-img-wrap">
+      <img id="snapImg" src="" alt="food snapshot">
+      <div class="modal-img-badge">已擷取</div>
+      <div class="modal-img-badge-en">CAPTURED</div>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- AI Result -->
+      <div class="ai-box" id="aiBox">
+        <div class="ai-head">◆ AI 分析結果 / AI ANALYSIS RESULT</div>
+        <div class="ai-food" id="aiFood">分析中... Analyzing...</div>
+        <div class="ai-origin" id="aiOrigin"></div>
+        <div class="ai-desc" id="aiDesc"></div>
+      </div>
+
+      <!-- Q1 -->
+      <div class="field">
+        <label>
+          <span class="num">01</span>
+          <span>
+            <span class="lbl-zh">這是什麼食物？</span>
+            <span class="lbl-en">WHAT KIND OF FOOD IS THIS?</span>
+          </span>
+        </label>
+        <input type="text" id="fFood" placeholder="例如：拉麵 / e.g. Ramen">
+      </div>
+
+      <!-- Q2 -->
+      <div class="field">
+        <label>
+          <span class="num">02</span>
+          <span>
+            <span class="lbl-zh">這個食物從哪裡來？（地點）</span>
+            <span class="lbl-en">WHERE DOES THIS FOOD COME FROM? (LOCATION)</span>
+          </span>
+        </label>
+        <input type="text" id="fOrigin" placeholder="例如：台北、日本 / e.g. Taipei, Japan">
+      </div>
+
+      <!-- Q3 -->
+      <div class="field">
+        <label>
+          <span class="num">03</span>
+          <span>
+            <span class="lbl-zh">好吃嗎？</span>
+            <span class="lbl-en">IS IT TASTY?</span>
+          </span>
+        </label>
+        <div class="stars">
+          <div class="star-btn" onclick="setStar(this,'★★★★★ 超好吃 Amazing!')">★★★★★</div>
+          <div class="star-btn" onclick="setStar(this,'★★★★☆ 很好吃 Delicious')">★★★★☆</div>
+          <div class="star-btn" onclick="setStar(this,'★★★☆☆ 還不錯 Good')">★★★☆☆</div>
+          <div class="star-btn" onclick="setStar(this,'★★☆☆☆ 普通 OK')">★★☆☆☆</div>
+          <div class="star-btn" onclick="setStar(this,'★☆☆☆☆ 不好 Meh')">★☆☆☆☆</div>
+        </div>
+      </div>
+
+      <!-- Q4 -->
+      <div class="field">
+        <label>
+          <span class="num">04</span>
+          <span>
+            <span class="lbl-zh">是否同意將內容分享到 DISCORD 伺服器平台？</span>
+            <span class="lbl-en">DO YOU AGREE TO SHARE THIS CONTENT ON THE DISCORD SERVER?</span>
+          </span>
+        </label>
+        <div class="agree-row" id="agreeRow" onclick="toggleAgree()">
+          <div class="agree-box" id="agreeBox">✕</div>
+          <div class="agree-text" id="agreeText">
+            點擊此處同意分享
+            <span class="en">Click here to agree to share</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Q5 -->
+      <div class="field">
+        <label>
+          <span class="num">05</span>
+          <span>
+            <span class="lbl-zh">我們該如何稱呼你？</span>
+            <span class="lbl-en">HOW SHOULD WE ADDRESS YOU?</span>
+          </span>
+        </label>
+        <input type="text" id="fNick" placeholder="輸入你的暱稱 / Enter your nickname">
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">✕ 取消<br>CANCEL</button>
+      <button class="btn-publish" id="pubBtn" onclick="publish()">⚡ 發布<br>PUBLISH</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const GEMINI_KEY      = 'AIzaSyB3wuEqD1MCczXMb_9rqDJXqkuZRMlblQg';
+const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1484534183098454108/edxTfE5YFfaG2Gu03CCXykkv4yVZ7aURojqRRX9GszXYDdJ3qAZDLpwBiCgnpF1EKChz';
+const GEMINI_MODEL    = 'gemini-1.5-flash';
+const CHECK_MS        = 4500;
+const COOLDOWN_MS     = 18000;
+
+let mediaStream = null;
+let checkTimer  = null;
+let checking    = false;
+let modalOpen   = false;
+let capturedUrl = null;
+let starVal     = '';
+let agreed      = false;
+let lastDetect  = 0;
+let logN        = 0;
+
+const video  = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+// HUD Clock
+setInterval(() => {
+  document.getElementById('hudTime').textContent = new Date().toTimeString().slice(0,8);
+}, 1000);
+
+function log(msg, cls='sys') {
+  logN++;
+  const body = document.getElementById('logBody');
+  const t = new Date().toTimeString().slice(0,8);
+  body.insertAdjacentHTML('beforeend',`<br><span class="le ${cls}">[${t}] ${msg}</span>`);
+  body.scrollTop = body.scrollHeight;
+  document.getElementById('logCnt').textContent = `${logN} EVENTS`;
+}
+
+let toastTimer = null;
+function toast(msg, isErr=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ══════════════════════════════════════
+// REQUEST CAMERA — triggers browser popup
+// ══════════════════════════════════════
+async function requestCamera() {
+  log('正在請求鏡頭授權 / Requesting camera permission...', 'sys');
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast('此瀏覽器不支援鏡頭\nBrowser does not support camera API', true);
+    log('ERROR: getUserMedia not supported', 'err');
+    return;
+  }
+
+  try {
+    // ← THIS LINE triggers the browser's native permission dialog
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'user' }, width:{ ideal:1280 }, height:{ ideal:720 } },
+      audio: false
+    });
+
+    video.srcObject = mediaStream;
+
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = resolve;
+      video.onerror = reject;
+      setTimeout(reject, 8000);
+    });
+
+    await video.play();
+
+    // Switch UI
+    document.getElementById('permGate').style.display = 'none';
+    document.getElementById('appMain').style.display  = 'flex';
+    document.getElementById('footNote').style.display = 'block';
+    document.getElementById('sdotCam').className = 'sdot on';
+    document.getElementById('stCam').textContent  = 'ONLINE · 線上';
+
+    log(`✓ 鏡頭已開啟 Camera started (${video.videoWidth}×${video.videoHeight})`, 'ok');
+    log('開始偵測迴圈 / Starting detection loop...', 'sys');
+    startLoop();
+
+  } catch(err) {
+    let zh = '', en = '';
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      zh = '鏡頭授權被拒絕'; en = 'Camera permission denied';
+    } else if (err.name === 'NotFoundError') {
+      zh = '找不到鏡頭裝置'; en = 'No camera device found';
+    } else if (err.name === 'NotReadableError') {
+      zh = '鏡頭被其他應用程式占用'; en = 'Camera in use by another app';
+    } else if (err.name === 'OverconstrainedError') {
+      zh = '鏡頭不支援此設定'; en = 'Camera constraints not supported';
+    } else {
+      zh = '鏡頭錯誤'; en = `Camera error: ${err.message}`;
+    }
+    toast(`${zh}\n${en}`, true);
+    log(`ERR [${err.name}]: ${err.message}`, 'err');
+  }
+}
+
+function stopCamera() {
+  clearInterval(checkTimer);
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  document.getElementById('sdotCam').className = 'sdot';
+  document.getElementById('stCam').textContent  = 'OFFLINE · 離線';
+  document.getElementById('sdotAi').className  = 'sdot';
+  document.getElementById('stAi').textContent   = 'STANDBY · 待機';
+  document.getElementById('appMain').style.display  = 'none';
+  document.getElementById('footNote').style.display = 'none';
+  document.getElementById('permGate').style.display = 'flex';
+  log('掃描已停止 / Scanner stopped', 'sys');
+}
+
+function capture() {
+  if (!video.videoWidth) return null;
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.save(); ctx.scale(-1,1); ctx.drawImage(video, -canvas.width, 0); ctx.restore();
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
+
+function startLoop() {
+  setTimeout(checkFood, 2000);
+  checkTimer = setInterval(checkFood, CHECK_MS);
+}
+
+async function checkFood() {
+  if (checking || modalOpen) return;
+  if (Date.now() - lastDetect < COOLDOWN_MS) return;
+
+  const dataUrl = capture();
+  if (!dataUrl) return;
+
+  checking = true;
+  document.getElementById('sdotAi').className = 'sdot scan';
+  document.getElementById('stAi').textContent  = 'SCANNING · 掃描中';
+
+  try {
+    const b64 = dataUrl.split(',')[1];
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
+      {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          contents:[{ parts:[
+            { inline_data:{ mime_type:'image/jpeg', data:b64 } },
+            { text:`Is there any food in this image? (meals, snacks, drinks, fruits, vegetables, packaged food, desserts, etc.)
+Reply ONLY with JSON (no markdown, no extra text):
+{"hasFood":true,"foodName":"name in Chinese/English","confidence":"high","description":"1-sentence description"}
+or if no food:
+{"hasFood":false,"foodName":"","confidence":"high","description":""}` }
+          ]}],
+          generationConfig:{ temperature:0.1, maxOutputTokens:150 }
+        })
+      }
+    );
+    const data   = await res.json();
+    const raw    = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const result = JSON.parse(raw.replace(/```json|```/g,'').trim());
+
+    if (result.hasFood && result.confidence !== 'low') {
+      log(`🍜 FOOD: ${result.foodName}`, 'food');
+      lastDetect = Date.now();
+      onFoodDetected(dataUrl, result);
+    } else {
+      document.getElementById('sdotAi').className = 'sdot on';
+      document.getElementById('stAi').textContent  = 'AI READY · 就緒';
+    }
+  } catch(e) {
+    log(`AI error: ${e.message}`, 'err');
+    document.getElementById('sdotAi').className = 'sdot on';
+    document.getElementById('stAi').textContent  = 'AI READY · 就緒';
+  }
+  checking = false;
+}
+
+async function onFoodDetected(dataUrl, ai) {
+  // Flash
+  const fl = document.getElementById('flash');
+  fl.style.animation = 'none'; void fl.offsetWidth;
+  fl.style.animation = 'flashAnim 0.45s ease-out forwards';
+
+  // Badge
+  const badge = document.getElementById('detectBadge');
+  badge.classList.add('show');
+  setTimeout(() => badge.classList.remove('show'), 2500);
+
+  capturedUrl = dataUrl;
+  document.getElementById('snapImg').src = dataUrl;
+  document.getElementById('fFood').value   = ai.foodName || '';
+  document.getElementById('fOrigin').value = '';
+  document.getElementById('aiFood').textContent   = ai.foodName || '—';
+  document.getElementById('aiOrigin').textContent = '📍 分析中... Analyzing...';
+  document.getElementById('aiDesc').textContent   = ai.description || '';
+
+  // Reset form
+  starVal = ''; agreed = false;
+  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('sel'));
+  document.getElementById('agreeRow').classList.remove('on');
+  document.getElementById('agreeBox').textContent = '✕';
+  document.getElementById('agreeText').innerHTML =
+    '點擊此處同意分享<span class="en">Click here to agree to share</span>';
+  document.getElementById('fNick').value = '';
+
+  modalOpen = true;
+  document.getElementById('overlay').classList.add('show');
+
+  deepAnalyze(dataUrl);
+}
+
+async function deepAnalyze(dataUrl) {
+  const b64 = dataUrl.split(',')[1];
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
+      {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          contents:[{ parts:[
+            { inline_data:{ mime_type:'image/jpeg', data:b64 } },
+            { text:`Analyze this food deeply. Reply ONLY JSON (no markdown):
+{"foodName":"Chinese + English name","origin":"city/country of origin","description":"appetizing 1-sentence description in both Chinese and English"}` }
+          ]}],
+          generationConfig:{ temperature:0.2, maxOutputTokens:200 }
+        })
+      }
+    );
+    const data = await res.json();
+    const raw  = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const r    = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    document.getElementById('aiFood').textContent   = r.foodName   || document.getElementById('fFood').value;
+    document.getElementById('aiOrigin').textContent = '📍 ' + (r.origin || '—');
+    document.getElementById('aiDesc').textContent   = r.description || '';
+    if (!document.getElementById('fFood').value)   document.getElementById('fFood').value   = r.foodName || '';
+    if (!document.getElementById('fOrigin').value) document.getElementById('fOrigin').value = r.origin   || '';
+  } catch(_) {}
+}
+
+function closeModal() {
+  modalOpen = false;
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('sdotAi').className = 'sdot on';
+  document.getElementById('stAi').textContent  = 'AI READY · 就緒';
+  log('視窗已關閉，繼續偵測 / Modal closed, resuming scan...', 'sys');
+}
+
+function setStar(el, val) {
+  starVal = val;
+  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function toggleAgree() {
+  agreed = !agreed;
+  document.getElementById('agreeRow').classList.toggle('on', agreed);
+  document.getElementById('agreeBox').textContent = agreed ? '✓' : '✕';
+  document.getElementById('agreeText').innerHTML = agreed
+    ? '✓ 已同意分享到 Discord<span class="en">Agreed to share to Discord server</span>'
+    : '點擊此處同意分享<span class="en">Click here to agree to share</span>';
+}
+
+async function publish() {
+  const food   = document.getElementById('fFood').value.trim();
+  const origin = document.getElementById('fOrigin').value.trim();
+  const nick   = document.getElementById('fNick').value.trim();
+
+  if (!food)    { toast('⚠ 請填寫食物名稱\nPlease enter food name', true); return; }
+  if (!starVal) { toast('⚠ 請選擇好吃程度\nPlease rate the food', true); return; }
+  if (!nick)    { toast('⚠ 請填寫暱稱\nPlease enter your nickname', true); return; }
+  if (!agreed)  { toast('⚠ 請同意分享條款\nPlease agree to share', true); return; }
+
+  const btn = document.getElementById('pubBtn');
+  btn.disabled = true;
+  btn.innerHTML = '⟳ 發布中...<br>PUBLISHING...';
+
+  const msg =
+`🍜 **New food!!!**
+
+🧑 來自 **${nick}** 的食物
+Food from **${nick}**
+
+🍽️ 這個食物叫做 **${food}**
+This food is called **${food}**
+
+📍 食物出生在 **${origin || '未知 / Unknown'}**
+Food originated from **${origin || 'Unknown'}**
+
+⭐ 好吃程度 **${starVal}**
+Deliciousness level: **${starVal}**
+
+📢 如果你想發布，請到 **#release-url** 伺服器
+If you want to publish, please go to the **#release-url** server.`;
+
+  try {
+    const r1 = await fetch(DISCORD_WEBHOOK, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ content: msg })
+    });
+    if (!r1.ok) throw new Error(`Discord HTTP ${r1.status}`);
+
+    // Send photo
+    if (capturedUrl) {
+      try {
+        const blob = await fetch(capturedUrl).then(r => r.blob());
+        const fd = new FormData();
+        fd.append('file', blob, 'food_photo.jpg');
+        fd.append('payload_json', JSON.stringify({
+          content: `📸 **${nick}** 的食物照片 / Food photo from **${nick}**`
+        }));
+        await fetch(DISCORD_WEBHOOK, { method:'POST', body: fd });
+      } catch(_) {}
+    }
+
+    log(`✓ 已發布！by ${nick}`, 'ok');
+    toast('✓ 成功發布到 Discord！\nPublished successfully!');
+    closeModal();
+  } catch(e) {
+    log(`Discord error: ${e.message}`, 'err');
+    toast(`發布失敗 / Failed:\n${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⚡ 發布<br>PUBLISH';
+  }
+}
+</script>
+</body>
+</html>
